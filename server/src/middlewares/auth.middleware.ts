@@ -1,11 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import jwt from "jsonwebtoken";
-import { ENV } from "../utils/env.ts";
-import { User } from "../models/user.model.ts";
-
-interface JwtPayload {
-    id: string;
-}
+import { AuthService } from "../services/auth.service.ts";
 
 export const authMiddleware = async (
     req: Request,
@@ -24,9 +18,8 @@ export const authMiddleware = async (
             });
         }
 
-        const decoded = jwt.verify(token, ENV.jwtSecret) as JwtPayload;
-
-        const user = await User.findById(decoded.id).select("-password");
+        const decoded = AuthService.decodeToken(token);
+        const user = await (AuthService.userFindById(decoded.id));
 
         if (!user) {
             return res.status(401).json({

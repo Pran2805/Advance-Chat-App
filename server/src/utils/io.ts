@@ -1,10 +1,9 @@
-import { Server, Socket } from "socket.io";
+import { Server } from "socket.io";
 import { Server as HttpServer } from 'node:http'
-import { Message } from "../models/message.model.ts";
-import { Chat } from "../models/chat.model.ts";
-import { User, type IUser } from "../models/user.model.ts";
-import jwt from 'jsonwebtoken'
-import { ENV } from "./env.ts";
+import { type IUser } from "../models/user.model.ts";
+import { AuthService } from "../services/auth.service.ts";
+import { ChatService } from "../services/chat.service.ts";
+import { MessageService } from "../services/message.service.ts";
 
 declare module "socket.io" {
     interface Socket {
@@ -29,9 +28,9 @@ export const initSocket = (server: HttpServer) => {
                 return next(new Error("Authentication Error"))
             }
 
-            const decoded = jwt.verify(token, ENV.jwtSecret) as { id: string };
+            const decoded = AuthService.decodeToken(token)
 
-            const user = await User.findById(decoded.id);
+            const user = await (AuthService.userFindById(decoded.id))
             if (!user) {
                 return next(new Error("Authentication Error"));
             }
@@ -69,47 +68,39 @@ export const initSocket = (server: HttpServer) => {
         })
 
         socket.on("send-message", async (data: { chatId: string, text: string }) => {
-           try {
-             const {chatId, text} = data;
-             const chat = await Chat.findOne({
-                 _id: chatId,
-                 participants: userId
-             })
- 
-             if(!chat){
-                 socket.emit("socket-error", {message: "Chat not Found"})
-                 return;
-             }
- 
-             const message = await Message.create({
-                 chat: chatId,
-                 sender: userId,
-                 text
-             })
- 
-             chat.lastMessage = message._id;
-             chat.lastMessageAt = new Date()
-             await chat.save()
- 
-             await message.populate("sender", "name email avatar")
- 
-             io.to(`chat:${chatId}`).emit("new-message", message)
-             for(const participantId of chat.participants){
-                 io.to(`user:${participantId}`).emit("new-message", message)
-             }
-           } catch (error) {
-            socket.emit("socket-error", {message: "Failed to send message"})
-            return;
-           }
+            try {
+                const { chatId, text } = data;
+                const chat = await (ChatService.findUserParticipant(chatId, userId))
+
+                if (!chat) {
+                    socket.emit("socket-error", { message: "Chat not Found" })
+                    return;
+                }
+
+                const message = await (MessageService.createMessage(chatId, userId, text))
+
+                chat.lastMessage = message._id;
+                chat.lastMessageAt = new Date()
+                await chat.save()
+
+                await message.populate("sender", "name email avatar")
+
+                io.to(`chat:${chatId}`).emit("new-message", message)
+                for (const participantId of chat.participants) {
+                    io.to(`user:${participantId}`).emit("new-message", message)
+                }
+            } catch (error) {
+                socket.emit("socket-error", { message: "Failed to send message" })
+                return;
+            }
         })
 
         // todo: last feature
-        socket.on("typing", async(data: any)=>{})
-
+        socket.on("typing", async (data: any) => { })
 
         socket.on('disconnect', () => {
             onlineUsers.delete(userId)
-            socket.broadcast.emit("user-offline", {userId})
+            socket.broadcast.emit("user-offline", { userId })
         });
     });
 

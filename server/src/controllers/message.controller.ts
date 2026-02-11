@@ -1,7 +1,6 @@
 import type { Request, Response } from "express";
-import { User } from "../models/user.model.ts";
-import { Chat } from "../models/chat.model.ts";
-import { Message } from "../models/message.model.ts";
+import { ChatService } from "../services/chat.service.ts";
+import { MessageService } from "../services/message.service.ts";
 
 export class MessageController {
     static async getMessage(req: Request, res: Response) {
@@ -9,10 +8,7 @@ export class MessageController {
             const { chatId } = req.params;
             const userId = req?.user?._id;
 
-            const chat = await Chat.findOne({
-                _id: chatId,
-                participants: userId
-            })
+            const chat = await (ChatService.findUserParticipant(chatId, userId))
 
             if (!chat) {
                 return res.status(404).json({
@@ -20,9 +16,7 @@ export class MessageController {
                 })
             }
 
-            const messages = await Message.find({ chat: chatId })
-                .populate("sender", "username email avatar")
-                .sort({ createdAt: 1 })
+            const messages = await (MessageService.findMessage(chatId))
 
             res.json({
                 success: true,

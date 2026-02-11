@@ -1,8 +1,7 @@
 import type { Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import bcrypt from "bcrypt";
-import { User } from "../models/user.model.ts";
 import { ENV } from "../utils/env.ts";
+import { AuthService } from "../services/auth.service.ts";
 
 const COOKIE_OPTIONS = {
     httpOnly: true,
@@ -23,9 +22,7 @@ export class AuthController {
                 });
             }
 
-            const existingUser = await User.findOne({
-                $or: [{ email }, { username }]
-            });
+            const existingUser = await (AuthService.findExistingUser(email, username))
 
             if (existingUser) {
                 return res.status(409).json({
@@ -34,20 +31,11 @@ export class AuthController {
                 });
             }
 
-            const salt = await bcrypt.genSalt(12);
-            const hashedPassword = await bcrypt.hash(password, salt);
+            const hashedPassword = await (AuthService.passwordHashing(password));
 
-            const user = await User.create({
-                username,
-                email,
-                password: hashedPassword
-            });
+            const user = await (AuthService.createUser(email, username, hashedPassword))
 
-            const token = jwt.sign(
-                { id: user._id },
-                ENV.jwtSecret,
-                { expiresIn: "7d" }
-            );
+            const token = AuthService.createToken(user?._id.toString())
 
             res.cookie("accessToken", token, COOKIE_OPTIONS);
 
@@ -79,7 +67,7 @@ export class AuthController {
                 });
             }
 
-            const user = await User.findOne({ email }).select("+password");
+            const user = await (AuthService.findExistingUser(email))
 
             if (!user) {
                 return res.status(401).json({
@@ -88,7 +76,7 @@ export class AuthController {
                 });
             }
 
-            const isPasswordValid = await bcrypt.compare(password, user.password);
+            const isPasswordValid = await (AuthService.comparePassword(password, user.password))
 
             if (!isPasswordValid) {
                 return res.status(401).json({
@@ -97,11 +85,7 @@ export class AuthController {
                 });
             }
 
-            const token = jwt.sign(
-                { id: user._id },
-                ENV.jwtSecret,
-                { expiresIn: "7d" }
-            );
+            const token = AuthService.createToken(user._id.toString())
 
             res.cookie("accessToken", token, COOKIE_OPTIONS);
 
@@ -127,7 +111,7 @@ export class AuthController {
             if(!req.user){
                 return res.status(400).json({message: "User not logged in", success: false})
             }
-            await res.clearCookie("accessToken", COOKIE_OPTIONS);
+            res.clearCookie("accessToken", COOKIE_OPTIONS);
 
             return res.status(200).json({
                 message: "User logged out successfully",

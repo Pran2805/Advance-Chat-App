@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { Chat } from "../models/chat.model.ts";
+import { ChatService } from "../services/chat.service.ts";
 
 export class ChatController {
     static async getChats(req: Request, res: Response) {
@@ -12,22 +12,12 @@ export class ChatController {
                 })
             }
 
-            const chats = await Chat.find({
-                participants: userId
-            }).populate("participants", "username email avatar")
-                .populate("lastMessage")
-                .sort({ lastMessageAt: -1 })
-
+            const chats = await (ChatService.findChatByUserId(userId))
 
             const formattedChat = chats.map(chat => {
                 const otherParticipant = chat.participants.find(p => p._id.toString() !== userId.toString())
-                return {
-                    _id: chat._id,
-                    participant: otherParticipant,
-                    lastMessage: chat.lastMessage,
-                    lastMessageAt: chat.lastMessageAt,
-                    createdAt: chat.createdAt
-                }
+                const formattingChat = ChatService.formattedChat(chat, otherParticipant)
+                return formattingChat;
             })
 
             res.json({
@@ -57,29 +47,18 @@ export class ChatController {
                 })
             }
 
-            let chat = await Chat.findOne({
-                participants: {
-                    $all: [userId, participantId]
-                }
-            })
-                .populate("participants", "username email avatar")
-                .populate("lastMessage")
+            let chat = await (ChatService.findAllChatOfUserParticipant(userId, participantId))
 
             if (!chat) {
-                const newChat = new Chat({
-                    participants: [userId, participantId]
-                })
+                const newChat = ChatService.createNewChat(userId, participantId)
                 await newChat.save()
                 chat = await newChat.populate("participants", "username email avatar")
             }
             const otherParticipant = chat.participants.find(p => p._id.toString() !== userId.toString())
 
+            const formattedChat = ChatService.formattedChat(chat, otherParticipant)
             return res.status(200).json({
-                _id: chat._id,
-                participant: otherParticipant ?? null,
-                lastMessage: chat.lastMessage,
-                lastMessageAt: chat.lastMessageAt,
-                createdAt: chat.createdAt
+                formattedChat
             })
         } catch (error) {
             return res.status(500).json({
