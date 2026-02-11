@@ -1,11 +1,19 @@
 import pinoHttp from "pino-http";
 import { logger } from "../utils/logger.ts";
+import os from "os";
+
+const PLATFORM = `${os.platform()}/${process.version}`;
+
 
 export const httpLogger = pinoHttp({
   logger,
-  customLogLevel: (_, res, err) => {
-    if (res.statusCode >= 500 || err) return "error";
-    if (res.statusCode >= 400) return "warn";
-    return "info";
+  autoLogging: false,
+
+  customSuccessMessage(req, res) {
+    return `${req.method} ${req.url} ${res.statusCode} `;
+  },
+
+  customErrorMessage(req, res, err) {
+    return ` ${req.method} ${req.url} ${res.statusCode}  ${err.message}`;
   },
 });

@@ -1,10 +1,17 @@
 import mongoose, { Schema, type Document } from "mongoose";
 
+declare global {
+    namespace Express {
+        interface Request {
+            user?: IUser;
+        }
+    }
+}
 export interface IUser extends Document {
     username: string
     email: string
     password: string
-    avatar?: string
+    avatar: string
     createdAt: Date
     updatedAt: Date
 }
