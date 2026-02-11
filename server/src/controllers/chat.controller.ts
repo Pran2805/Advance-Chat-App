@@ -51,6 +51,11 @@ export class ChatController {
                     message: "User and participant Id must be required"
                 })
             }
+            if (userId.toString() == participantId.toString()) {
+                return res.status(400).json({
+                    message: "Chat Cannot be created with yourself"
+                })
+            }
 
             let chat = await Chat.findOne({
                 participants: {
